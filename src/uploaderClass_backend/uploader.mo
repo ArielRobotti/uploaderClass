@@ -7,7 +7,7 @@ import Text "mo:base/Text";
 
 module {
     type FileID = Types.FileID;
-    type AssetEncoding = Types.AssetEncoding;
+    type TempAsset = Types.TempAsset;
     type UploadResponse = Types.UploadResponse;
     type AssetSave = Types.AssetSave;
     type Chunk = Types.Chunk;
@@ -15,7 +15,7 @@ module {
     type Result<T,U> = {#Ok: T; #Err: U};
     
     public class Uploader() = {
-        let filesUploading = Map.new<FileID, AssetEncoding>();
+        let filesUploading = Map.new<FileID, TempAsset>();
         let generateId = Prim.time;
 
         // From the frontend you must send the file name and its size in bytes extracted from the file object, 
@@ -35,7 +35,7 @@ module {
                 total_length = fileSize;
                 certified = false;
             };
-            ignore Map.put<FileID, AssetEncoding>(filesUploading, nhash, id, newAsset);
+            ignore Map.put<FileID, TempAsset>(filesUploading, nhash, id, newAsset);
             {id; chunksQty; chunkSize };
         };
         ///////////////// Frontend example ////////////////

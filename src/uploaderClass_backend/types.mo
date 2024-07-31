@@ -3,7 +3,7 @@ module {
         fileName : Text;
         total_length : Nat;
     };
-    public type AssetEncoding = {
+    public type TempAsset = {
         fileName : Text;
         modified : Int;
         content_chunks : [var Blob];

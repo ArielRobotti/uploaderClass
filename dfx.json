@@ -1,5 +1,9 @@
 {
   "canisters": {
+    "internet_identity": {
+      "type": "pull",
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+    },
     "uploaderClass_backend": {
       "main": "src/uploaderClass_backend/main.mo",
       "type": "motoko"
@@ -22,5 +26,17 @@
     }
   },
   "output_env_file": ".env",
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "ic": {
+      "providers": [
+        "https://mainnet.dfinity.network" 
+      ],
+      "type": "persistent"
+    }
+  },
   "version": 1
 }

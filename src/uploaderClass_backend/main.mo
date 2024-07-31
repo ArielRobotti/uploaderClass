@@ -6,22 +6,27 @@ import Debug "mo:base/Debug";
 import Types "types";
 import Prim "mo:⛔";
 
-actor {
+shared ({caller}) actor class (_owner: Principal) = {
+
     type Uploader = Uploader.Uploader;
     type UploadResponse = Types.UploadResponse;
-    type AssetEncoding = Types.AssetEncoding;
+    type TempAsset = Types.TempAsset;
     type Asset = Types.AssetSave;
     type Chunk = Types.Chunk;
-
     type Result<T, U> = { #Ok : T; #Err : U };
     type FileID = Nat;
 
-    stable var fileId = 0;
+    stable let deployer = caller;
+    stable let owner = _owner;
+    
+    stable var fileId = 31415;
     var tempFileId = 0;
 
     stable let files = Map.new<Nat, Asset>();
-    let uploadingFiles= Map.new<Nat, AssetEncoding>();
-
+    let tempFiles = Map.new<Nat, TempAsset>();
+    func authorizedCaller(p: Principal): Bool {
+        p == deployer or p == owner;
+    };
     func getId(v: {#File; #Temp}): Nat {
         switch v {
             case (#File) {
@@ -39,8 +44,9 @@ actor {
     };
     ///////////////////////////////// Upload ///////////////////////////////////////////
 
-    public func uploadRequest(fileName : Text, fileSize : Nat) : async UploadResponse {
-        let chunkSize = 1_048_576;   // Tamaño en Bytes de los "Chuncks" 1_048_576 //1MB
+    public shared ({caller}) func uploadRequest(fileName : Text, fileSize : Nat) : async UploadResponse {
+        // assert(authorizedCaller(caller));
+        let chunkSize = 1_000_000;   // Tamaño en Bytes de los "Chuncks" 1_048_576 //1MB
         let chunksQty = fileSize / chunkSize + (if (fileSize % chunkSize > 0) {1} else {0});
         let content_chunks = Prim.Array_init<Blob>(chunksQty, "");
         let id = getId(#Temp);
@@ -52,13 +58,14 @@ actor {
             total_length = fileSize;
             certified = false;
         };
-        ignore Map.put<FileID, AssetEncoding>(uploadingFiles, nhash, id, newAsset);
+        ignore Map.put<FileID, TempAsset>(tempFiles, nhash, id, newAsset);
         {id; chunksQty; chunkSize};
     };
 
-    public func addChunck(fileId :Nat, chunk : Blob, index : Nat) : async Result<(), Text> {
-        Debug.print("Subiendo Chunk Nro " # Nat.toText(index));
-        let file = Map.get<Nat, AssetEncoding>(uploadingFiles, nhash, fileId);
+    public shared ({caller}) func addChunck(tfId :Nat, chunk : Blob, index : Nat) : async Result<(), Text> {
+        // assert(authorizedCaller(caller));
+        Debug.print("Guardando " # Nat.toText(chunk.size()) # " Bytes from Chunk Nro " # Nat.toText(index));
+        let file = Map.get<Nat, TempAsset>(tempFiles, nhash, tfId);
             switch file {
                 case null {#Err("Archivo de carga no encontrado")};
                 case (?file) {
@@ -68,8 +75,9 @@ actor {
             }  
     };
     
-    public func commitLoad(fileId : Nat) : async Result<Nat, Text> {
-        let file = Map.get<Nat, AssetEncoding>(uploadingFiles, nhash, fileId);
+    public shared ({caller}) func commitLoad(tfId : Nat) : async Result<Nat, Text> {
+        // assert(authorizedCaller(caller));
+        let file = Map.get<Nat, TempAsset>(tempFiles, nhash, tfId);
         switch file {
             case null { 
                 return #Err("No se encuentra el Id")
@@ -80,13 +88,13 @@ actor {
                         size += ch.size();
             };
             if(size != file.total_length){
-                Map.delete(uploadingFiles, nhash, fileId);
+                Map.delete(tempFiles, nhash, tfId);
                 return #Err("Tamaño incorrecto");
             };
             let content_chunks = frezze<Chunk>(file.content_chunks);
             let id = getId(#File);
             ignore Map.put<Nat, Asset>(files, nhash, id, {file with content_chunks});
-            Map.delete(uploadingFiles, nhash, fileId);
+            Map.delete(tempFiles, nhash, tfId);
             #Ok(id)
             }
         };
@@ -94,16 +102,18 @@ actor {
 
     ////////////////////////// Download ///////////////////////////////
 
-    public query func startDownload(fileId : Nat) : async Result<Asset, Text> {
-        let file = Map.get(files, nhash, fileId);
+    public query ({caller}) func startDownload(_fileId : Nat) : async Result<Asset, Text> {
+        // assert(authorizedCaller(caller));
+        let file = Map.get(files, nhash, _fileId);
         switch file {
             case null { #Err("File Not Found") };
             case (?file) { #Ok({ file with content_chunks = [] }) };
         };
     };
 
-    public query func getChunck(fileId : Nat, chunckIndex : Nat) : async Result<Blob, Text> {
-        let file = Map.get(files, nhash, fileId);
+    public query ({caller}) func getChunck(_fileId : Nat, chunckIndex : Nat) : async Result<Blob, Text> {
+        // assert(authorizedCaller(caller));
+        let file = Map.get(files, nhash, _fileId);
         switch file {
             case null { #Err("File Not Found") };
             case (?file) {
